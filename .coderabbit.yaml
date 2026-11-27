@@ -3,8 +3,17 @@ reviews:
   profile: chill
   high_level_summary: true
   poem: false
+  path_instructions:
+    - path: "hooks/register.test.tsx"
+      instructions: "Fixtures use invented data only (ABC-123 keys, the acme owner, made-up repositories and people). Each behaviour change has a test named for the behaviour."
+    - path: "docs/**"
+      instructions: "Screenshots show /cc demo data only, with no real names, tickets, repositories or hosts."
+    - path: "skills/**"
+      instructions: "Skill text stays generic: no employer, product, internal tool or person names."
 knowledge_base:
   code_guidelines:
     enabled: true
     filePatterns:
       - AGENTS.md
+      - CLAUDE.md
+      - README.md
