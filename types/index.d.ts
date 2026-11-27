@@ -86,7 +86,7 @@ export type Handled = { sig: string; at: number; isProposed: boolean }
 export type Owner = { id: string; title: string }
 
 export type CcConfig = {
-  tickets?: { server: string; toolPrefix?: string; cloudId: string; browseUrl: string }
+  tickets?: { kind?: 'jira' | 'linear'; server: string; toolPrefix?: string; cloudId?: string; browseUrl: string }
   github?: { owner?: string; releaseRepos?: string[] }
   search?: { server: string; tool: string; args?: Record<string, unknown> }
   calendar?: { server: string }

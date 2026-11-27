@@ -301,6 +301,7 @@ const BRIEF_SYSTEM = [
 
 const PR_COLORS: Record<string, Color> = { OPEN: 'success', MERGED: 'merged', CLOSED: 'error' }
 const JIRA_COLORS: Record<string, Color> = { done: 'success', indeterminate: 'suggestion', new: 'inactive' }
+const LINEAR_CATEGORIES: Record<string, string> = { completed: 'done', canceled: 'done', duplicate: 'done', started: 'indeterminate' }
 const CI: Record<string, [string, Color]> = {
   SUCCESS: ['CI passing', 'success'],
   FAILURE: ['CI failing', 'error'],
@@ -513,6 +514,12 @@ async function fetchIssue($: EngineInterface, key: string): Promise<Jira | null>
   const tickets = cfg.tickets
   if (!tickets) return null
   try {
+    if (tickets.kind === 'linear') {
+      const issue = JSON.parse(await call($, tickets.server, ticketTool('get_issue'), { id: key, fields: ['title', 'status', 'statusType'] }))
+      await update($, sources, current => ({ ...current, jira: '' }))
+
+      return { status: issue.status, category: LINEAR_CATEGORIES[issue.statusType] ?? 'new', summary: issue.title }
+    }
     const issue = JSON.parse(
       await call($, tickets.server, ticketTool('getJiraIssue'), { cloudId: tickets.cloudId, issueIdOrKey: key, fields: ['status', 'summary'] }),
     )
@@ -520,7 +527,7 @@ async function fetchIssue($: EngineInterface, key: string): Promise<Jira | null>
 
     return { status: issue.fields.status.name, category: issue.fields.status.statusCategory.key, summary: issue.fields.summary }
   } catch (error) {
-    if (!/not found|does not exist|404/i.test(messageOf(error))) {
+    if (!/not found|could not find|does not exist|404/i.test(messageOf(error))) {
       await update($, sources, current => ({ ...current, jira: messageOf(error) }))
     }
 
@@ -945,7 +952,8 @@ function configProblem(next: CcConfig) {
   const fields: [string, unknown, RegExp, boolean][] = [
     ['tickets.server', tickets?.server, NAME, tickets !== undefined],
     ['tickets.toolPrefix', tickets?.toolPrefix, /^[\w-]*$/, false],
-    ['tickets.cloudId', tickets?.cloudId, /^[\w:/.-]+$/, tickets !== undefined],
+    ['tickets.kind', tickets?.kind, /^(jira|linear)$/, false],
+    ['tickets.cloudId', tickets?.cloudId, /^[\w:/.-]+$/, tickets !== undefined && tickets.kind !== 'linear'],
     ['tickets.browseUrl', tickets?.browseUrl, /^https:\/\/\S+$/, tickets !== undefined],
     ['github.owner', github?.owner, /^[\w.-]+$/, false],
     ['search.server', search?.server, NAME, search !== undefined],
@@ -1340,10 +1348,16 @@ const archiveAll = ($: EngineInterface, targets: ArchiveTarget[]) =>
 
 type Transition = { id: string; name: string; to: { name: string } }
 type Subtask = { key: string; fields?: { status?: { statusCategory?: { key?: string } } } }
+type LinearChild = { id: string; statusType: string }
 
 async function moveToDone($: EngineInterface, key: string) {
   const tickets = cfg.tickets
   if (!tickets) throw new Error('no ticket tool is set up; run /cc-setup')
+  if (tickets.kind === 'linear') {
+    await call($, tickets.server, ticketTool('save_issue'), { id: key, state: 'Done' })
+
+    return
+  }
   const reply = JSON.parse(await call($, tickets.server, ticketTool('getTransitionsForJiraIssue'), { cloudId: tickets.cloudId, issueIdOrKey: key }))
   const transitions: Transition[] = reply.transitions ?? []
   const done = transitions.find(transition => /^done$/i.test(transition.name) || /^done$/i.test(transition.to.name))
@@ -1356,9 +1370,16 @@ const closeTicket = ($: EngineInterface, key: string, related: Row[], isDone: bo
     await update($, armed, () => null)
     const tickets = cfg.tickets
     if (!tickets) throw new Error('no ticket tool is set up; run /cc-setup')
-    const issue = JSON.parse(await call($, tickets.server, ticketTool('getJiraIssue'), { cloudId: tickets.cloudId, issueIdOrKey: key, fields: ['subtasks'] }))
-    const subtasks: Subtask[] = issue.fields?.subtasks ?? []
-    const open = subtasks.filter(subtask => subtask.fields?.status?.statusCategory?.key !== 'done').map(subtask => subtask.key)
+    let open: string[]
+    if (tickets.kind === 'linear') {
+      const reply = JSON.parse(await call($, tickets.server, ticketTool('list_issues'), { parentId: key, fields: ['statusType'], limit: 250 }))
+      const children: LinearChild[] = reply.issues ?? []
+      open = children.filter(child => LINEAR_CATEGORIES[child.statusType] !== 'done').map(child => child.id)
+    } else {
+      const issue = JSON.parse(await call($, tickets.server, ticketTool('getJiraIssue'), { cloudId: tickets.cloudId, issueIdOrKey: key, fields: ['subtasks'] }))
+      const subtasks: Subtask[] = issue.fields?.subtasks ?? []
+      open = subtasks.filter(subtask => subtask.fields?.status?.statusCategory?.key !== 'done').map(subtask => subtask.key)
+    }
     for (const subtask of open) await moveToDone($, subtask)
     if (!isDone) await moveToDone($, key)
     jiraFetchedAt.delete(key)
@@ -1812,14 +1833,15 @@ export const register: Register = on => {
         properties: {
           tickets: {
             type: 'object',
-            description: 'Jira through an Atlassian MCP server. Omit when there is no ticket tracker.',
+            description: 'Jira through an Atlassian MCP server, or Linear through a Linear MCP server. Omit when there is no ticket tracker.',
             properties: {
+              kind: { type: 'string', enum: ['jira', 'linear'], description: 'The ticket tracker; jira when left out' },
               server: { type: 'string', description: 'MCP server name as in the tool names mcp__<server>__<tool>' },
-              toolPrefix: { type: 'string', description: 'Text before getJiraIssue in that server tool names, often empty' },
-              cloudId: { type: 'string', description: 'Atlassian cloud id or site URL' },
-              browseUrl: { type: 'string', description: 'Ticket page prefix, like https://acme.atlassian.net/browse/' },
+              toolPrefix: { type: 'string', description: 'Text before getJiraIssue (Jira) or get_issue (Linear) in that server tool names, often empty' },
+              cloudId: { type: 'string', description: 'Jira only: Atlassian cloud id or site URL' },
+              browseUrl: { type: 'string', description: 'Ticket page prefix, like https://acme.atlassian.net/browse/ or https://linear.app/acme/issue/' },
             },
-            required: ['server', 'cloudId', 'browseUrl'],
+            required: ['server', 'browseUrl'],
           },
           github: {
             type: 'object',

@@ -86,6 +86,13 @@ const SUBTASKS = [
   { key: 'ABC-212', fields: { status: { statusCategory: { key: 'done' } } } },
 ]
 
+const LINEAR_TYPES: Record<string, string> = { indeterminate: 'started', new: 'unstarted', done: 'completed' }
+
+const SUB_ISSUES = [
+  { id: 'ABC-211', statusType: 'unstarted' },
+  { id: 'ABC-212', statusType: 'completed' },
+]
+
 const RELEASES = {
   data: {
     r0: {
@@ -288,7 +295,7 @@ function engine(on: On, w: World = world()) {
   })
   on('mcp.call', (_, e) => {
     const id = String(e.args.session_id ?? '')
-    const key = String(e.args.issueIdOrKey ?? '')
+    const key = String(e.args.issueIdOrKey ?? e.args.id ?? '')
     const issue = ISSUES[key]
     const replies: Record<string, string | undefined> = {
       list_sessions: JSON.stringify(w.sessions),
@@ -311,6 +318,9 @@ function engine(on: On, w: World = world()) {
         ],
       }),
       'transitionJiraIssue': 'ok',
+      get_issue: issue ? JSON.stringify({ id: key, title: `Summary of ${key}`, status: issue.name, statusType: LINEAR_TYPES[issue.key] }) : undefined,
+      list_issues: JSON.stringify({ issues: e.args.parentId === 'ABC-210' ? SUB_ISSUES : [], hasNextPage: false }),
+      save_issue: 'ok',
       send_message: 'delivered',
       search_session_transcripts:
         typeof w.transcripts === 'string' ? w.transcripts : (w.transcripts[String(e.args.query)] ?? 'No matching sessions found.'),
@@ -332,8 +342,11 @@ function engine(on: On, w: World = world()) {
     if (e.tool === 'list_sessions') w.listCalls += 1
     w.mcpCalls.push(`${e.server}:${e.tool}`)
     if (e.tool === 'transitionJiraIssue') w.transitioned.push(`${key}:${(e.args.transition as { id: string }).id}`)
+    if (e.tool === 'save_issue') w.transitioned.push(`${key}:${String(e.args.state)}`)
 
-    return { value: { content: [{ type: 'text', text: text ?? 'Issue does not exist' }], isError: text === undefined } }
+    const missing = e.tool === 'get_issue' ? 'Could not find referenced Issue.' : 'Issue does not exist'
+
+    return { value: { content: [{ type: 'text', text: text ?? missing }], isError: text === undefined } }
   })
   on('prompt.submit', (_, e) => {
     w.asked.push(e.text)
@@ -807,6 +820,59 @@ test('marking a ticket done moves it and its open subtasks to Done and archives 
   expect((await ui.find({ type: 'Text', text: /^ABC-210 is Done/ }))?.text).toBe(
     'ABC-210 is Done with 1 subtask; archived 1 session; kept "Invoice export endpoint" (open PR or still working)',
   )
+  await ui.unmount()
+})
+
+function linearWorld() {
+  const w = world()
+  w.stored = { config: { tickets: { kind: 'linear', server: 'tickets', browseUrl: 'https://linear.app/acme/issue/' }, github: { owner: 'acme' } } }
+
+  return w
+}
+
+test('with Linear tickets, a session shows its ticket\'s Linear status and links to the Linear issue', async ($, on) => {
+  engine(on, linearWorld())
+  await $.command.run(BOARD)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect((await ui.find({ type: 'Text', text: /ABC-210 ·/ }))?.text).toBe('ABC-210 · In Progress')
+  expect((await ui.findAll({ type: 'Link' })).map(link => link.props.href)).toContain('https://linear.app/acme/issue/ABC-210')
+  await ui.unmount()
+})
+
+test('with Linear tickets, marking a ticket done moves it and its open sub-issues to Done', async ($, on) => {
+  const w = engine(on, linearWorld())
+  await $.command.run(BOARD)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  await ui.press({ key: 'local_a:ticket-done' })
+  await ui.press({ key: 'local_a:ticket-done' })
+
+  expect(w.transitioned).toEqual(['ABC-211:Done', 'ABC-210:Done'])
+  expect((await ui.find({ type: 'Text', text: /^ABC-210 is Done/ }))?.text).toMatch(/^ABC-210 is Done with 1 subtask/)
+  await ui.unmount()
+})
+
+test('with Linear tickets, a completed ticket counts as done and offers no Mark done', async ($, on) => {
+  engine(on, linearWorld())
+  await $.command.run(BOARD)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect((await ui.find({ type: 'Text', text: /ABC-240 ·/ }))?.text).toBe('ABC-240 · Done')
+  expect(await ui.find({ key: 'local_b:ticket-done' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('with Linear tickets, a ticket Linear cannot find does not mark the ticket source as failing', async ($, on) => {
+  const w = linearWorld()
+  w.sessions = w.sessions.filter(session => session.sessionId === 'local_a')
+  w.stored.tags = { local_a: 'ABC-999' }
+  engine(on, w)
+  await $.command.run(BOARD)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect((await ui.find({ type: 'Text', text: /^ABC-999$/ }))?.text).toBe('ABC-999')
+  expect(await ui.find({ type: 'Text', text: /unavailable/ })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -1683,6 +1749,24 @@ test('configure saves settings only once the user confirms them and refuses malf
   })
   expect(w.asked.length).toBe(asked)
   expect(w.stored.config).toEqual(settings)
+})
+
+test('configure saves a Linear ticket setting without a cloud id and refuses an unknown tracker or a Jira one without it', async ($, on) => {
+  const w = world()
+  w.stored = {}
+  engine(on, w)
+  const linear = { tickets: { kind: 'linear', server: 'tickets', browseUrl: 'https://linear.app/acme/issue/' } }
+
+  await $.tool.call({ tool: 'mcp__session-board__configure', ...linear })
+  await w.clock?.settle()
+  expect(w.stored.config).toEqual(linear)
+
+  expect(await $.tool.call({ tool: 'mcp__session-board__configure', tickets: { kind: 'trello', server: 'tickets', browseUrl: 'https://acme.example/' } })).toEqual({
+    deny: 'Not saved: tickets.kind is missing or not valid',
+  })
+  expect(await $.tool.call({ tool: 'mcp__session-board__configure', tickets: { server: 'tickets', browseUrl: 'https://acme.atlassian.net/browse/' } })).toEqual({
+    deny: 'Not saved: tickets.cloudId is missing or not valid',
+  })
 })
 
 test('/cc demo shows sample work without fetching anything, and /cc live switches back', async ($, on) => {

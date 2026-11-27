@@ -30,7 +30,7 @@ Expand the pane (⤢) and the board spreads out. **Now** becomes four columns, a
 - The **Claude desktop app**, in the Code tab. Command Control lists and acts on sessions through the app's own session tools, so it doesn't work in a plain terminal.
 - Optional sources, each one turning on a part of the board:
   - **GitHub** through the `gh` CLI, signed in: pull requests, review requests and releases
-  - **Jira** through an Atlassian connector: ticket names, statuses and stages
+  - **Jira** through an Atlassian connector, or **Linear** through a Linear connector: ticket names, statuses and stages
   - **A Glean-style docs search** connector: docs in search
   - **Google Calendar** connector: the next meeting
 
