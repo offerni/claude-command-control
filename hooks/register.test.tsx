@@ -1378,10 +1378,10 @@ test('with no release repositories set, the boards show no release column, lane,
   const ui = await $.ui.mount({ ...PANE3, props: { ...PANE3.props, bodyColumns: 154 }, surface: 'desktop' })
 
   expect(await texts(ui, /^(Build|Review|Merge|Release|Done) · \d+$/)).toEqual(['Build · 0', 'Review · 1', 'Merge · 0', 'Done · 0'])
-  expect(await texts(ui, /^(Asking you|Pull requests|Reviews for you|Ready to release) · \d+$/)).toEqual([
-    'Asking you · 0',
-    'Pull requests · 0',
-    'Reviews for you · 0',
+  expect(await texts(ui, /^[▸▾] (Asking you|Pull requests|Reviews for you|Ready to release) · \d+$/)).toEqual([
+    '▾ Asking you · 0',
+    '▾ Pull requests · 0',
+    '▾ Reviews for you · 0',
   ])
   await ui.press({ key: 'work:ABC-210:open' })
   expect(await texts(ui, /^[●◉○] /)).toEqual(['● Build', '● PR', '◉ Review', '○ Merge', '○ Done'])
@@ -1402,13 +1402,30 @@ test('/cc demo shows its sample releases in the Now column, lane and board 2 tab
   const ui = await $.ui.mount({ ...PANE3, props: { ...PANE3.props, bodyColumns: 154 }, surface: 'desktop' })
 
   expect(await texts(ui, /^Release · \d+$/)).toEqual(['Release · 1'])
-  expect(await texts(ui, /^Ready to release · \d+$/)).toEqual(['Ready to release · 2'])
+  expect(await texts(ui, /^[▸▾] Ready to release · \d+$/)).toEqual(['▾ Ready to release · 2'])
   await ui.unmount()
 
   await $.command.run(BOARD2)
   const board2 = await $.ui.mount({ ...PANE2, surface: 'desktop' })
   expect((await board2.find({ key: 'tab:releases' }))?.text).toBe('Releases 2')
   await board2.unmount()
+})
+
+test('cc folds a Now column in the expanded view down to its header and opens it again', async ($, on) => {
+  const w = forkWorld()
+  w.events.local_a = ['[assistant] Tests pass, opening the PR next.', '[result] done (success), 1 turns']
+  engine(on, w)
+  await $.command.run(CC)
+  const ui = await $.ui.mount({ ...PANE3, props: { ...PANE3.props, bodyColumns: 154 }, surface: 'desktop' })
+
+  expect(await ui.find({ key: 'now:billing#350:fix' })).toBeDefined()
+  await ui.press({ key: 'fold:now:col:prs' })
+  expect((await ui.find({ key: 'fold:now:col:prs' }))?.text).toBe('▸ Pull requests · 1')
+  expect(await ui.find({ key: 'now:billing#350:fix' })).toBeUndefined()
+
+  await ui.press({ key: 'fold:now:col:prs' })
+  expect(await ui.find({ key: 'now:billing#350:fix' })).toBeDefined()
+  await ui.unmount()
 })
 
 test('cc search groups sessions, tickets, PRs and docs, and a ticket hit opens its page', async ($, on) => {
@@ -1736,7 +1753,12 @@ test('cc keeps the list in a narrow pane and shows lanes or cards in a wide one,
   const sideAgain = await $.ui.mount({ ...PANE3, props: { ...PANE3.props, bodyColumns: 42 }, surface: 'vscode' })
   expect(await texts(expanded, /^(Build|Review|Merge|Release|Done) · \d+$/)).toEqual(['Build · 0', 'Review · 1', 'Merge · 0', 'Release · 0', 'Done · 0'])
   expect((await expanded.find({ key: 'work:ABC-210:title:0' }))?.text).toBe('Summary of ABC-210')
-  expect(await texts(expanded, /^(Asking you|Pull requests|Reviews for you|Ready to release) · \d+$/)).toEqual(['Asking you · 0', 'Pull requests · 0', 'Reviews for you · 0', 'Ready to release · 2'])
+  expect(await texts(expanded, /^[▸▾] (Asking you|Pull requests|Reviews for you|Ready to release) · \d+$/)).toEqual([
+    '▾ Asking you · 0',
+    '▾ Pull requests · 0',
+    '▾ Reviews for you · 0',
+    '▾ Ready to release · 2',
+  ])
   expect((await expanded.find({ type: 'Text', text: /^Nothing in review|^No ticket in build$/ }))?.text).toBe('No ticket in build')
   expect(await expanded.find({ key: 'popout' })).toBeUndefined()
   expect(await sideAgain.find({ key: 'lanes' })).toBeUndefined()

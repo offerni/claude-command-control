@@ -19,7 +19,7 @@ When you run many Claude Code sessions at once, it gets hard to see which one is
 - **Housekeeping.** Sessions that look finished are suggested for clean up, with **Archive all**.
 - **Everywhere.** A one-line "◆ 2 need you" band above the prompt in every session, and a notification when a session finishes.
 
-Expand the pane (⤢) and the board spreads out. **Now** becomes four columns, and **In flight** shows your tickets as lanes by stage, or as cards.
+Expand the pane (⤢) and the board spreads out. **Now** becomes columns that each fold to their header, and **In flight** shows your tickets as lanes by stage, or as cards.
 
 ![Expanded, lanes by stage](docs/expanded-lanes.png)
 

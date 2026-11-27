@@ -3139,12 +3139,18 @@ export const register: Register = on => {
         )
       }
 
-      const nowColumn = (key: string, title: string, color: Color, items: Ask[]) => (
-        <Box key={`now:col:${key}`} width={nowCol} flexShrink={0} flexDirection="column" gap="xs">
-          <Text weight="semibold" color={color}>{`${title} · ${items.length}`}</Text>
-          {items.length === 0 ? <Text dimColor size="footnote">Nothing</Text> : items.map(askItem)}
-        </Box>
-      )
+      const nowColumn = (key: string, title: string, color: Color, items: Ask[]) => {
+        const isShut = shut.includes(`now:col:${key}`)
+
+        return (
+          <Box key={`now:col:${key}`} width={nowCol} flexShrink={0} flexDirection="column" gap="xs">
+            <Button key={`fold:now:col:${key}`} plain onPress={() => update($, collapsed, current => toggleIn(current, `now:col:${key}`))}>
+              <Text weight="semibold" color={color}>{fitCells(`${isShut ? '▸' : '▾'} ${title} · ${items.length}`, nowCol)}</Text>
+            </Button>
+            {!isShut && (items.length === 0 ? <Text dimColor size="footnote">Nothing</Text> : items.map(askItem))}
+          </Box>
+        )
+      }
 
       const prToken = (prefix: string, pr: Pr) => {
         const [glyph, color] = prCondition(pr)
