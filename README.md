@@ -52,6 +52,15 @@ Answer `y` to add the marketplace and pick the user scope.
 
 Run `/cc-setup` in any session. Claude checks which of the sources above you have, asks which ones to use, tries each with one real call, and saves your choices once you confirm them. Run it again any time to change them.
 
+### Starter skills
+
+Two board buttons start a session with a command of yours: **Start with …** on a ticket and **Release** on a repository with unreleased work. If you have no skill for either, `/cc-setup` can write one for you:
+
+- `/start-ticket <key>` takes a ticket to a pull request with passing checks: read the ticket and the code, plan, branch, build test-first, run tests and lint, review the diff, open the pull request, watch the checks.
+- `/cut-release <repo>` lists what merged since the last release, suggests the version, drafts the notes, publishes once you confirm, and follows the release workflow.
+
+Setup looks at one of your repositories first (default branch, tags, test and lint commands, branch and commit style), then asks about your workflow with those as suggestions, and writes the skills to `~/.claude/skills/` (or one repository's `.claude/skills/`) with your answers in them. They are plain skill files: edit them any time. Without a command, the buttons fall back to a built-in prompt that reads the ticket and proposes an approach, or follows the repository's own release process and checks with you before publishing.
+
 Then run `/cc` to open the board.
 
 To look around before connecting anything, run `/cc demo`. It fills the board with made-up sample work and fetches nothing. `/cc live` switches back.
@@ -62,7 +71,8 @@ To look around before connecting anything, run `/cc demo`. It fills the board wi
 |---|---|
 | `/cc` | Opens Command Control |
 | `/cc demo` / `/cc live` | Switches between sample data and your real data |
-| `/cc-setup` | Picks and tests your sources, then saves them |
+| `/cc-setup` | Picks and tests your sources, writes starter skills if you want them, then saves your choices |
+| `/start-ticket`, `/cut-release` | The starter skills, once `/cc-setup` has written them |
 | `/board`, `/board2` | Two older, simpler layouts of the same data |
 
 ## How it works

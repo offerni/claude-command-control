@@ -1849,7 +1849,7 @@ export const register: Register = on => {
             type: 'object',
             properties: {
               ticket: { type: 'string', description: 'Prompt that starts work on a ticket, with {key}, like /start-ticket {key}' },
-              release: { type: 'string', description: 'Prompt that cuts a release, with {repo}, like /release {repo}' },
+              release: { type: 'string', description: 'Prompt that cuts a release, with {repo}, like /cut-release {repo}' },
               services: { type: 'string', description: 'Slash command, without the slash, that opens a local services pane' },
             },
           },

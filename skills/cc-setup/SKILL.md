@@ -1,6 +1,6 @@
 ---
 name: cc-setup
-description: Set up or change Command Control (the session-board pane): find which of the user's tools it can read tickets, pull requests, docs search and the calendar from, ask which to use, test each one, and save the choices. Use when the user runs /cc-setup or asks to set up, connect or reconfigure Command Control or the session board.
+description: Set up or change Command Control (the session-board pane): find which of the user's tools it can read tickets, pull requests, docs search and the calendar from, ask which to use, test each one, write starter skills for starting tickets and cutting releases when wanted, and save the choices. Use when the user runs /cc-setup or asks to set up, connect or reconfigure Command Control or the session board.
 ---
 
 # Set up Command Control
@@ -36,15 +36,23 @@ Work through the steps in order. Ask one question at a time with AskUserQuestion
 
 - Look for a Google Calendar server with a `list_events` tool. If there is one, ask whether to use it and test with `list_events` and `pageSize: 1`.
 
-## 6. Commands and context (all optional)
+## 6. Ticket and release commands
 
-Ask whether they have:
-- a prompt or skill that starts work on a ticket, written with `{key}` (for example `/start-ticket {key}`);
-- a prompt or skill that cuts a release, written with `{repo}` (for example `/release {repo}`);
+Command Control has two buttons that start a session with a command: **Start with …** on a ticket, and **Release** on a repository with unreleased work. Set up each one in turn:
+
+1. Ask whether the user already has a skill or prompt for it. When they do, use it, written with `{key}` for tickets and `{repo}` for releases.
+2. When they don't, offer the starter skill in this skill's `templates/` folder: `start-ticket.md` for tickets, `cut-release.md` for releases. When they decline, leave the command out; the board then uses its built-in prompt.
+3. Fit the starter to their workflow. Work in a repository they use (ask which when the current folder isn't one). Before asking, look up a suggestion for each `{{…}}` in the template's Workflow section: the default branch from `gh repo view --json defaultBranchRef`, tags from `gh release list --limit 5`, test and lint commands from package scripts, the Makefile or guide files, branch and commit style from `git log --oneline -20` and `gh pr list --state merged --limit 10`. Ask with AskUserQuestion, up to four questions per call, the suggestion first. Each answer replaces its `{{…}}`; when they would rather the skill work it out on each run, write that instead.
+4. Write the result to `~/.claude/skills/start-ticket/SKILL.md` or `~/.claude/skills/cut-release/SKILL.md`, or under the repository's `.claude/skills/` when they want it for that repository only. When a skill of that name already exists, ask before replacing it. Done when the written file has no `{{` left.
+5. The command is then `/start-ticket {key}` or `/cut-release {repo}`. Sessions started from now on load the new skill.
+
+## 7. Other options (all optional)
+
+Ask whether they want:
 - a slash command, without the slash, that opens a local services pane;
-- one sentence new sessions should get (for example where the code lives and what to read first).
+- one sentence new sessions should get (for example where the code lives and what to read first);
 - session titles that should never show on the board, like a chat they keep for general questions (`hide`).
 
-## 7. Save
+## 8. Save
 
 Call `mcp__session-board__configure` with every source the user chose. Leave out a source they set to None. The tool shows the user the settings and saves them only if they confirm; if it says they were not saved, ask what to change. Show them what was saved, then tell them to run `/cc` to open Command Control. They can run `/cc-setup` again any time to change a choice.
