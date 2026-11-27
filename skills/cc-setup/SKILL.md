@@ -25,6 +25,10 @@ Work through the steps in order. Ask one question at a time with AskUserQuestion
 
 - Run `gh auth status`. If gh is missing or not signed in, say so and offer None (pull requests, reviews and releases turn off).
 - Ask which organization or user owns their repositories (`owner`), and which repositories should show merged-but-unreleased work (`releaseRepos`). `gh repo list <owner> --limit 50 --json name` helps them pick. Releases are read from each repository's latest GitHub release.
+- Ask three more questions, each one off unless they say yes:
+  - whether to show only pull requests and review requests from the owner's repositories (`ownerOnly`), for someone whose account also works in other organizations;
+  - whether to show only review requests made to them directly, leaving out those made to their teams (`directReviewsOnly`);
+  - after how many days without an update a review request leaves the board (`reviewDays`), or never.
 - Test with `gh api repos/<owner>/<first repo> --jq .full_name`.
 
 ## 4. Docs search

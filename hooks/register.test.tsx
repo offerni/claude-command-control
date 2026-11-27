@@ -56,7 +56,7 @@ const PRS = {
             url: 'https://github.com/acme/billing/pull/288',
             headRefName: 'features/ABC-240-dark-mode',
             state: 'MERGED',
-            repository: { name: 'billing' },
+            repository: { name: 'billing', owner: { login: 'acme' } },
           },
         ],
       },
@@ -71,7 +71,7 @@ const PRS = {
             isDraft: false,
             mergeable: 'MERGEABLE',
             reviewDecision: 'REVIEW_REQUIRED',
-            repository: { name: 'billing' },
+            repository: { name: 'billing', owner: { login: 'acme' } },
             commits: { nodes: [{ commit: { statusCheckRollup: { state: 'FAILURE' } } }] },
             reviewThreads: { nodes: [{ isResolved: false }, { isResolved: false }, { isResolved: true }] },
           },
@@ -113,6 +113,17 @@ const RELEASES = {
   },
 }
 
+type ReviewFixture = {
+  number: number
+  title: string
+  url: string
+  state: string
+  updatedAt: string
+  repository: { name: string; owner?: { login: string } }
+  author: { login: string }
+  isDirect?: boolean
+}
+
 type World = {
   sessions: Record<string, unknown>[]
   events: Record<string, string[]>
@@ -137,7 +148,7 @@ type World = {
   prs: typeof PRS
   asked: string[]
   stored: Record<string, unknown>
-  reviewAsks: unknown[]
+  reviewAsks: ReviewFixture[]
   foundPrs: unknown[]
   transcripts: string | Record<string, string>
   docs: string
@@ -379,7 +390,10 @@ function engine(on: On, w: World = world()) {
     if (bin === 'pbcopy') w.copied.push(e.init?.stdin ?? '')
     if (bin === 'open') w.launched.push(args.join(' '))
     const query = args.join(' ')
-    const found = args[0] === 'search' ? (query.includes('--review-requested=@me') ? w.reviewAsks : w.foundPrs) : undefined
+    const reviewOwner = /--owner (\S+)/.exec(query)?.[1]?.toLowerCase()
+    const isDirectSearch = query.includes('user-review-requested:@me')
+    const asks = w.reviewAsks.filter(ask => (!isDirectSearch || ask.isDirect) && (!reviewOwner || ask.repository.owner?.login === reviewOwner))
+    const found = args[0] === 'search' ? (query.includes('review-requested') ? asks : w.foundPrs) : undefined
     const stdout = bin === 'gh' ? JSON.stringify(found ?? (query.includes('viewer') ? w.prs : w.releases)) : ''
 
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
@@ -1105,7 +1119,7 @@ test('board 2 PRs tab lists every open PR by what it needs, including PRs with n
     isDraft: false,
     mergeable: 'MERGEABLE',
     reviewDecision: 'APPROVED',
-    repository: { name: 'mobile' },
+    repository: { name: 'mobile', owner: { login: 'acme' } },
     commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] },
     reviewThreads: { nodes: [] },
   })
@@ -1278,7 +1292,7 @@ test('cc lists reviews asked of you and starts a review session', async ($, on) 
       url: 'https://github.com/acme/cli/pull/88',
       state: 'open',
       updatedAt: '2026-11-10T22:45:00Z',
-      repository: { name: 'cli' },
+      repository: { name: 'cli', owner: { login: 'acme' } },
       author: { login: 'octocat' },
     },
   ]
@@ -1291,6 +1305,68 @@ test('cc lists reviews asked of you and starts a review session', async ($, on) 
 
   await ui.press({ key: 'ask:cli#88:review' })
   expect(w.started).toEqual([{ title: 'Review cli #88 Retry on 503', prompt: 'Review https://github.com/acme/cli/pull/88' }])
+  await ui.unmount()
+})
+
+const reviewAsk = (number: number, updatedAt: string, owner: string, isDirect: boolean): ReviewFixture => ({
+  number,
+  title: `Change ${number}`,
+  url: `https://github.com/${owner}/cli/pull/${number}`,
+  state: 'open',
+  updatedAt,
+  repository: { name: 'cli', owner: { login: owner } },
+  author: { login: 'octocat' },
+  isDirect,
+})
+
+function githubWorld(github: Record<string, unknown>) {
+  const w = forkWorld()
+  w.events.local_a = ['[assistant] Tests pass, opening the PR next.', '[result] done (success), 1 turns']
+  w.stored = { config: { ...(w.stored.config as Record<string, unknown>), github: { owner: 'acme', ...github } } }
+
+  return w
+}
+
+test('with ownerOnly, cc leaves out pull requests and review requests from repositories the owner does not own, whatever the owner\'s letter case', async ($, on) => {
+  const w = githubWorld({ ownerOnly: true, owner: 'Acme' })
+  const nodes = PRS.data.viewer.open.nodes.flatMap(node => [
+    node,
+    { ...node, number: 12, url: 'https://github.com/elsewhere/gadgets/pull/12', repository: { name: 'gadgets', owner: { login: 'elsewhere' } } },
+  ])
+  w.prs = { data: { viewer: { ...PRS.data.viewer, open: { nodes } } } }
+  w.reviewAsks = [reviewAsk(88, '2026-11-10T22:45:00Z', 'acme', true), reviewAsk(61, '2026-11-10T22:45:00Z', 'elsewhere', true)]
+  engine(on, w)
+  await $.command.run(CC)
+  const ui = await $.ui.mount({ ...PANE3, surface: 'desktop' })
+
+  expect(await ui.find({ key: 'now:billing#350:fix' })).toBeDefined()
+  expect(await ui.find({ key: 'now:gadgets#12:fix' })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^Reviews asked/ }))?.text).toBe('Reviews asked of you · 1')
+  expect(await ui.find({ key: 'ask:cli#61:review' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('with directReviewsOnly, cc lists review requests made to you and leaves out those made to your teams', async ($, on) => {
+  const w = githubWorld({ directReviewsOnly: true })
+  w.reviewAsks = [reviewAsk(88, '2026-11-10T22:45:00Z', 'acme', true), reviewAsk(61, '2026-11-10T22:45:00Z', 'acme', false)]
+  engine(on, w)
+  await $.command.run(CC)
+  const ui = await $.ui.mount({ ...PANE3, surface: 'desktop' })
+
+  expect(await ui.find({ key: 'ask:cli#88:review' })).toBeDefined()
+  expect(await ui.find({ key: 'ask:cli#61:review' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('with reviewDays, cc leaves out review requests on pull requests not updated in that many days', async ($, on) => {
+  const w = githubWorld({ reviewDays: 4 })
+  w.reviewAsks = [reviewAsk(88, '2026-11-10T22:45:00Z', 'acme', true), reviewAsk(61, '2026-11-06T22:00:00Z', 'acme', true)]
+  engine(on, w)
+  await $.command.run(CC)
+  const ui = await $.ui.mount({ ...PANE3, surface: 'desktop' })
+
+  expect(await ui.find({ key: 'ask:cli#88:review' })).toBeDefined()
+  expect(await ui.find({ key: 'ask:cli#61:review' })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -1326,7 +1402,7 @@ test('cc search groups sessions, tickets, PRs and docs, and a ticket hit opens i
       url: 'https://github.com/acme/gateway/pull/315',
       state: 'open',
       updatedAt: '2026-11-10T22:00:00Z',
-      repository: { name: 'gateway' },
+      repository: { name: 'gateway', owner: { login: 'acme' } },
       author: { login: 'octocat' },
     },
   ]
@@ -1452,7 +1528,7 @@ test('a start the app refuses from plugin code becomes a proposal card instead o
       url: 'https://github.com/acme/cli/pull/88',
       state: 'open',
       updatedAt: '2026-11-10T22:45:00Z',
-      repository: { name: 'cli' },
+      repository: { name: 'cli', owner: { login: 'acme' } },
       author: { login: 'octocat' },
     },
   ]
@@ -1484,7 +1560,7 @@ test('cc sends a PR action to the conversation that owns the PR, asking once whe
     isDraft: false,
     mergeable: 'MERGEABLE',
     reviewDecision: 'REVIEW_REQUIRED',
-    repository: { name: 'shared' },
+    repository: { name: 'shared', owner: { login: 'acme' } },
     commits: { nodes: [{ commit: { statusCheckRollup: { state: 'FAILURE' } } }] },
     reviewThreads: { nodes: [] },
   })
@@ -1562,7 +1638,7 @@ test('cc keeps a session that still holds an open PR out of Clean up and shows t
               isDraft: false,
               mergeable: 'MERGEABLE',
               reviewDecision: 'REVIEW_REQUIRED',
-              repository: { name: 'shared' },
+              repository: { name: 'shared', owner: { login: 'acme' } },
               commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] },
               reviewThreads: { nodes: [] },
             },
@@ -1767,6 +1843,20 @@ test('configure saves a Linear ticket setting without a cloud id and refuses an 
   expect(await $.tool.call({ tool: 'mcp__session-board__configure', tickets: { server: 'tickets', browseUrl: 'https://acme.atlassian.net/browse/' } })).toEqual({
     deny: 'Not saved: tickets.cloudId is missing or not valid',
   })
+})
+
+test('configure refuses GitHub filter settings of the wrong type', async ($, on) => {
+  const w = world()
+  w.stored = {}
+  engine(on, w)
+
+  expect(await $.tool.call({ tool: 'mcp__session-board__configure', github: { owner: 'acme', ownerOnly: 'yes' } })).toEqual({
+    deny: 'Not saved: github.ownerOnly must be true or false',
+  })
+  expect(await $.tool.call({ tool: 'mcp__session-board__configure', github: { owner: 'acme', reviewDays: 1.5 } })).toEqual({
+    deny: 'Not saved: github.reviewDays must be a whole number of days',
+  })
+  expect(w.stored.config).toBeUndefined()
 })
 
 test('/cc demo shows sample work without fetching anything, and /cc live switches back', async ($, on) => {

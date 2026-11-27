@@ -59,7 +59,7 @@ const isHidden = (title: string) =>
   DEDICATED.test(title.trim()) || (cfg.hide ?? []).some(hidden => hidden.trim().toLowerCase() === title.trim().toLowerCase())
 const FETCHER_STALE_MS = 45_000
 
-const PR_QUERY = `query { viewer { open: pullRequests(states: OPEN, first: 40, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title url headRefName state isDraft mergeable reviewDecision repository { name } commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 50) { nodes { ... on CheckRun { name status conclusion } ... on StatusContext { context state } } } } } } } reviewThreads(first: 100) { nodes { isResolved } } } } recent: pullRequests(states: [MERGED, CLOSED], first: 40, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title url headRefName state repository { name } } } } }`
+const PR_QUERY = `query { viewer { open: pullRequests(states: OPEN, first: 40, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title url headRefName state isDraft mergeable reviewDecision repository { name owner { login } } commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 50) { nodes { ... on CheckRun { name status conclusion } ... on StatusContext { context state } } } } } } } reviewThreads(first: 100) { nodes { isResolved } } } } recent: pullRequests(states: [MERGED, CLOSED], first: 40, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title url headRefName state repository { name owner { login } } } } } }`
 
 const releaseQuery = (owner: string, repos: string[]) =>
   `query { ${repos
@@ -249,7 +249,7 @@ type PrNode = {
   isDraft?: boolean
   mergeable?: string
   reviewDecision?: string | null
-  repository: { name: string }
+  repository: { name: string; owner: { login: string } }
   commits?: { nodes: { commit: { statusCheckRollup: Rollup | null } }[] }
   reviewThreads?: { nodes: { isResolved: boolean }[] }
 }
@@ -587,9 +587,10 @@ const checkNames = (names: string[]) => [...new Set(names.map(name => name.split
 
 async function refreshPrs($: EngineInterface) {
   const reply = JSON.parse(await gh($, ['api', 'graphql', '-f', `query=${PR_QUERY}`]))
+  const owner = cfg.github?.ownerOnly ? cfg.github.owner : undefined
   const nodes: PrNode[] = [...reply.data.viewer.open.nodes, ...reply.data.viewer.recent.nodes]
   await update($, prs, () =>
-    nodes.map(node => ({
+    nodes.filter(node => !owner || node.repository.owner.login.toLowerCase() === owner.toLowerCase()).map(node => ({
       repo: node.repository.name,
       number: node.number,
       title: node.title,
@@ -630,8 +631,20 @@ async function refreshReleases($: EngineInterface) {
 }
 
 async function refreshReviews($: EngineInterface) {
+  const github = cfg.github
+  const owner = github?.ownerOnly ? github.owner : undefined
   const found: FoundPr[] = JSON.parse(
-    await gh($, ['search', 'prs', '--review-requested=@me', '--state=open', '--json', 'number,title,url,state,updatedAt,repository,author', '--limit', '20']),
+    await gh($, [
+      'search',
+      'prs',
+      github?.directReviewsOnly ? 'user-review-requested:@me' : '--review-requested=@me',
+      '--state=open',
+      ...(owner ? ['--owner', owner] : []),
+      '--json',
+      'number,title,url,state,updatedAt,repository,author',
+      '--limit',
+      '20',
+    ]),
   )
   await update($, reviews, () =>
     found.map(node => ({ repo: node.repository.name, number: node.number, title: node.title, url: node.url, author: node.author.login, updatedAt: node.updatedAt })),
@@ -972,6 +985,14 @@ function configProblem(next: CcConfig) {
   ]
   const badList = lists.find(([, value, pattern]) => value !== undefined && !(Array.isArray(value) && value.every(item => typeof item === 'string' && pattern.test(item))))
   if (badList) return `${badList[0]} must be a list of names`
+  const flags: [string, unknown][] = [
+    ['github.ownerOnly', github?.ownerOnly],
+    ['github.directReviewsOnly', github?.directReviewsOnly],
+  ]
+  const badFlag = flags.find(([, value]) => value !== undefined && typeof value !== 'boolean')
+  if (badFlag) return `${badFlag[0]} must be true or false`
+  const days: unknown = github?.reviewDays
+  if (days !== undefined && !(typeof days === 'number' && Number.isInteger(days) && days > 0)) return 'github.reviewDays must be a whole number of days'
   const args: unknown = search?.args
   if (args !== undefined && (typeof args !== 'object' || args === null || Array.isArray(args))) return 'search.args must be an object'
 
@@ -1849,6 +1870,9 @@ export const register: Register = on => {
             properties: {
               owner: { type: 'string', description: 'Organization or user that owns the repos' },
               releaseRepos: { type: 'array', items: { type: 'string' }, description: 'Repos whose merged-but-unreleased PRs to track' },
+              ownerOnly: { type: 'boolean', description: 'Show only pull requests and review requests from repos the owner owns' },
+              directReviewsOnly: { type: 'boolean', description: 'Show only review requests made to the user, not to their teams' },
+              reviewDays: { type: 'number', description: 'Leave out review requests on pull requests not updated in this many days' },
             },
           },
           search: {
@@ -2721,7 +2745,8 @@ export const register: Register = on => {
     }
 
     if (e.requestId === PANE3) {
-      const asks = await read($, reviews)
+      const reviewDays = cfg.github?.reviewDays
+      const asks = (await read($, reviews)).filter(ask => !reviewDays || polled - Date.parse(ask.updatedAt) <= reviewDays * 24 * HOUR)
       const agenda = await read($, meetings)
       const found = (await read($, searchByView))[viewId] ?? null
       const looked = await read($, seen)

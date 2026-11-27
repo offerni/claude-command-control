@@ -10,7 +10,7 @@ When you run many Claude Code sessions at once, it gets hard to see which one is
   - sessions asking you something (**Reply**, **Open**)
   - pull requests with failing checks, merge conflicts or open review threads (**Fix CI**, **Resolve**, **Address**), sent to the conversation that owns the pull request
   - pull requests that are approved and green (**Merge ↗**)
-  - pull requests where your review was requested (**Review**)
+  - pull requests where your review was requested (**Review**); `/cc-setup` can limit these to requests made to you directly, and to pull requests updated in the last few days
   - services with merged work that hasn't been released (**Release**)
 - **In flight.** Your work grouped by ticket, with its stage: Build › PR › Review › Merge › Release › Done. Open a ticket to see its sessions, pull requests and release, and to mark it done.
 - **Since you looked.** What changed while you were away: checks that failed or passed, approvals, merges, new review threads, sessions that finished. **Brief me** sums it up in five bullets with links.
@@ -29,7 +29,7 @@ Expand the pane (⤢) and the board spreads out. **Now** becomes four columns, a
 
 - The **Claude desktop app**, in the Code tab. Command Control lists and acts on sessions through the app's own session tools, so it doesn't work in a plain terminal.
 - Optional sources, each one turning on a part of the board:
-  - **GitHub** through the `gh` CLI, signed in: pull requests, review requests and releases
+  - **GitHub** through the `gh` CLI, signed in: pull requests, review requests and releases, from every repository or only the owner's you choose
   - **Jira** through an Atlassian connector, or **Linear** through a Linear connector: ticket names, statuses and stages
   - **A Glean-style docs search** connector: docs in search
   - **Google Calendar** connector: the next meeting

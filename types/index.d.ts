@@ -87,7 +87,7 @@ export type Owner = { id: string; title: string }
 
 export type CcConfig = {
   tickets?: { kind?: 'jira' | 'linear'; server: string; toolPrefix?: string; cloudId?: string; browseUrl: string }
-  github?: { owner?: string; releaseRepos?: string[] }
+  github?: { owner?: string; releaseRepos?: string[]; ownerOnly?: boolean; directReviewsOnly?: boolean; reviewDays?: number }
   search?: { server: string; tool: string; args?: Record<string, unknown> }
   calendar?: { server: string }
   commands?: { ticket?: string; release?: string; services?: string }
