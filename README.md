@@ -17,6 +17,7 @@ When you run many Claude Code sessions at once, it gets hard to see which one is
 - **Search.** One box for session transcripts, tickets, pull requests and your docs search. **Ask Claude about this** starts a session with the results.
 - **Your day.** The next meeting with a join link and the tickets it covers, plus a standup draft from the last 24 hours.
 - **Housekeeping.** Sessions that look finished are suggested for clean up, with **Archive all**.
+- **Titles.** **Rename** on a session suggests a clearer title from its messages, branch, pull request and ticket. **Scan titles** checks every session on the board and lists the ones that could be better. Nothing is renamed until you press **Apply** or **Apply all**.
 - **Everywhere.** A one-line "◆ 2 need you" band above the prompt in every session, and a notification when a session finishes.
 
 Expand the pane (⤢) and the board spreads out. **Now** becomes columns that each fold to their header, and **In flight** shows your tickets as lanes by stage, or as cards.
@@ -79,7 +80,7 @@ To look around before connecting anything, run `/cc demo`. It fills the board wi
 
 - One open Command Control does the fetching every 15 seconds: the session list from the Claude app, pull requests and releases from `gh`, tickets, the calendar. It writes everything to the plugin's shared store. Any other Command Control, in another session or window, only reads that store. If the fetching session closes, another one takes over within about 45 seconds.
 - **Pop out ↗** opens the board in a dedicated "Command Control" session with its own window. The app draws one pane once and shows that same drawing everywhere it appears, so a separate session is what keeps the pop-out from changing your side panel.
-- The one-line state on each session is written by Claude Haiku from the session's last reply. It runs once per new reply, only in the fetching session. **Brief me** and reply suggestions call Haiku only when you press them.
+- The one-line state on each session is written by Claude Haiku from the session's last reply. It runs once per new reply, only in the fetching session. **Brief me**, reply suggestions, **Rename** and **Scan titles** call Haiku only when you press them.
 
 ## Privacy
 

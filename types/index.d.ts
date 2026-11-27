@@ -119,6 +119,7 @@ declare module 'claude-code' {
       reply: string
       busy: Record<string, string>
       names: Record<string, SessionName>
+      titleIdeas: Record<string, string>
       openForks: string[]
       note: string
       isOpen2: boolean
