@@ -32,7 +32,9 @@ npx tsc -p .
 
 ## Public data
 
-The repository is public, so every file, file name, commit message and image holds only invented or already-public data. Invented data looks like ticket keys `ABC-123`, the `acme` owner, made-up repositories and people. Screenshots are taken with `/cc demo` on and saved without image metadata. Commits use the author's GitHub noreply email.
+The repository is public, so every file, file name, commit message and image holds only invented or already-public data. Invented data looks like ticket keys `ABC-123`, the `acme` owner, made-up repositories and people. Screenshots are taken with `/cc demo` on and saved without image metadata.
+
+Anyone can contribute under their own GitHub account, name and email. These rules cover what goes into the files, images and messages, never who wrote them.
 
 Private data is anything that points to a real person, employer or client:
 - names, usernames, emails, phone numbers, avatars
@@ -65,4 +67,4 @@ These parts keep users safe. A pull request that touches one says why in its bod
   - screenshots for any change to the pane, at side-panel and expanded widths.
   When the scope changes during review, rewrite the body so it describes the pull request as it is now.
 - **Commits:** each message says why the change was made.
-- **Authorship:** commits and pull requests carry only the author's own name; leave out tool or assistant attribution lines.
+- **Authorship:** each contributor commits under their own account; tool or assistant attribution lines stay out.
