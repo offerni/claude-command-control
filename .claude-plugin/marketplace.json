@@ -1,0 +1,13 @@
+{
+  "name": "claude-command-control",
+  "owner": {
+    "name": "offerni"
+  },
+  "plugins": [
+    {
+      "name": "session-board",
+      "source": "./",
+      "description": "Command Control: one board for all your Claude Code sessions, the pull requests and tickets they belong to, what needs you now, and what is ready to release."
+    }
+  ]
+}

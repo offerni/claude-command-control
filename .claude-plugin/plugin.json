@@ -1,0 +1,6 @@
+{
+  "name": "session-board",
+  "version": "1.0.0",
+  "description": "Command Control: one board for all your Claude Code sessions, the pull requests and tickets they belong to, what needs you now, and what is ready to release.",
+  "types": "./types/index.d.ts"
+}
