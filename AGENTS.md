@@ -10,6 +10,7 @@ Command Control is a Claude Code plugin: one hooks module that draws a pane in t
 - `skills/cc-setup/`: the setup skill and the starter skill templates it writes.
 - `docs/`: README screenshots.
 - `.claude-plugin/`: the plugin manifest and the marketplace file.
+- `.claude/skills/review-pr/`: the review skill for this repository; it is not installed with the plugin.
 
 ## Checks
 
@@ -66,5 +67,6 @@ These parts keep users safe. A pull request that touches one says why in its bod
   - how it was tested (the checks above, plus what you tried in the app),
   - screenshots for any change to the pane, at side-panel and expanded widths.
   When the scope changes during review, rewrite the body so it describes the pull request as it is now.
+- **Review:** `/review-pr <number>` in Claude Code reviews a pull request against these rules; CodeRabbit reviews it too.
 - **Commits:** each message says why the change was made.
 - **Authorship:** each contributor commits under their own account; tool or assistant attribution lines stay out.
