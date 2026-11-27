@@ -1519,6 +1519,26 @@ test('cc folds a Now column in the expanded view down to its header and opens it
   await ui.unmount()
 })
 
+test('Not related takes a session off its ticket, keeps that in the store, and it stays off after a refresh', async ($, on) => {
+  const w = engine(on)
+  await $.command.run(CC)
+  const ui = await $.ui.mount({ ...PANE3, surface: 'desktop' })
+
+  await ui.press({ key: 'work:ABC-210:open' })
+  expect(await ui.find({ key: 'cc:local_a:expand' })).toBeDefined()
+
+  await ui.press({ key: 'cc:local_a:unrelated' })
+  expect(await ui.find({ key: 'cc:local_a:expand' })).toBeUndefined()
+  expect(w.stored.tags).toEqual({ local_a: '' })
+
+  await ui.press({ key: 'refresh' })
+  expect(await ui.find({ key: 'cc:local_a:expand' })).toBeUndefined()
+
+  await ui.press({ key: 'focus:back' })
+  expect((await ui.find({ type: 'Text', text: /^In flight · / }))?.text).toBe('In flight · 0')
+  await ui.unmount()
+})
+
 test('cc search groups sessions, tickets, PRs and docs, and a ticket hit opens its page', async ($, on) => {
   const w = world()
   w.transcripts = [

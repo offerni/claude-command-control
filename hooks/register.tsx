@@ -901,6 +901,7 @@ async function refresh($: EngineInterface, source: string, ms: number, now: numb
 }
 
 function ticketOf(row: Row, tagged: Record<string, string>, all: Pr[]) {
+  if (tagged[row.id] === '') return undefined
   const pr = prFor(row, all)
 
   return (
@@ -1525,6 +1526,14 @@ const closeTicket = ($: EngineInterface, key: string, related: Row[], isDone: bo
     ]
       .filter(Boolean)
       .join('; ')
+  })
+
+const markUnrelated = ($: EngineInterface, row: Row, ticket: string) =>
+  act($, `${row.id}:unrelated`, `Taking ${row.title} off ${ticket}`, async () => {
+    const all = await update($, tags, current => ({ ...current, [row.id]: '' }))
+    await $.store.set('tags', all)
+
+    return `${row.title} is no longer listed under ${ticket}`
   })
 
 async function saveTag($: EngineInterface, id: string, value: string) {
@@ -3446,10 +3455,15 @@ export const register: Register = on => {
               <Text color={color}>{state === 'working' ? '●' : state === 'needs' ? '◆' : '○'}</Text>
               <Box flexGrow={1} flexShrink={1} minWidth={0}>
                 <Button key={`cc:${row.id}:expand`} plain onPress={() => update($, expanded, current => toggleIn(current, `${viewPrefix}cc:${row.id}`))}>
-                  <Text weight="semibold">{`${fitCells(row.title, rowWidth - 16)} ${isShown ? '▾' : '▸'}`}</Text>
+                  <Text weight="semibold">{`${fitCells(row.title, rowWidth - (ticket ? 29 : 16))} ${isShown ? '▾' : '▸'}`}</Text>
                 </Button>
               </Box>
               <Text dimColor size="caption">{age(polled, row.lastActivityAt).replace(' ago', '')}</Text>
+              {ticket && (
+                <Button key={`cc:${row.id}:unrelated`} plain onPress={() => void markUnrelated($, row, ticket)}>
+                  <Text dimColor size="caption">Not related</Text>
+                </Button>
+              )}
             </Box>
             {gist !== '' && (
               <Text color={state === 'needs' ? 'suggestion' : 'subtle'} size="footnote" wrap="truncate-end">{gist}</Text>

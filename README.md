@@ -12,7 +12,7 @@ When you run many Claude Code sessions at once, it gets hard to see which one is
   - pull requests that are approved and green (**Merge ↗**)
   - pull requests where your review was requested (**Review**); `/cc-setup` can limit these to requests made to you directly, and to pull requests updated in the last few days
   - services with merged work that hasn't been released (**Release**), once you name the repositories to track in `/cc-setup`
-- **In flight.** Your work grouped by ticket, with its stage: Build › PR › Review › Merge › Release › Done, where Release shows once you name repositories to track. Open a ticket to see its sessions, pull requests and release, and to mark it done.
+- **In flight.** Your work grouped by ticket, with its stage: Build › PR › Review › Merge › Release › Done, where Release shows once you name repositories to track. Open a ticket to see its sessions, pull requests and release, and to mark it done. A session matched to the wrong ticket comes off it with **Not related**.
 - **Since you looked.** What changed while you were away: checks that failed or passed, approvals, merges, new review threads, sessions that finished. **Brief me** sums it up in five bullets with links.
 - **Search.** One box for session transcripts, tickets, pull requests and your docs search. **Ask Claude about this** starts a session with the results.
 - **Your day.** The next meeting with a join link and the tickets it covers, plus a standup draft from the last 24 hours.
