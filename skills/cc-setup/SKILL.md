@@ -40,11 +40,11 @@ Work through the steps in order. Ask one question at a time with AskUserQuestion
 
 Command Control has two buttons that start a session with a command: **Start with …** on a ticket, and **Release** on a repository with unreleased work. Set up each one in turn:
 
-1. Ask whether the user already has a skill or prompt for it. When they do, use it, written with `{key}` for tickets and `{repo}` for releases.
-2. When they don't, offer the starter skill in this skill's `templates/` folder: `start-ticket.md` for tickets, `cut-release.md` for releases. When they decline, leave the command out; the board then uses its built-in prompt.
+1. Ask whether the user already has a skill, slash command or prompt for it, whatever it is called. When they do, ask for its name and save it with `{key}` for tickets or `{repo}` for releases where the key or repository goes, for example `/my-skill {key}`. Confirm a skill or command of that name is in your list; when it isn't, tell them and ask again. A plain prompt needs no check.
+2. When they don't, offer the starter skill in this skill's `templates/` folder: `start-ticket.md` for tickets, `cut-release.md` for releases. When they decline, leave the command out; the board then uses its built-in prompt. When they accept, ask what to call it, suggesting `start-ticket` or `cut-release`: lowercase letters, digits and hyphens, and a name none of their skills or commands already uses.
 3. Fit the starter to their workflow. Work in a repository they use (ask which when the current folder isn't one). Before asking, look up a suggestion for each `{{…}}` in the template's Workflow section: the default branch from `gh repo view --json defaultBranchRef`, tags from `gh release list --limit 5`, test and lint commands from package scripts, the Makefile or guide files, branch and commit style from `git log --oneline -20` and `gh pr list --state merged --limit 10`. Ask with AskUserQuestion, up to four questions per call, the suggestion first. Each answer replaces its `{{…}}`; when they would rather the skill work it out on each run, write that instead.
-4. Write the result to `~/.claude/skills/start-ticket/SKILL.md` or `~/.claude/skills/cut-release/SKILL.md`, or under the repository's `.claude/skills/` when they want it for that repository only. When a skill of that name already exists, ask before replacing it. Done when the written file has no `{{` left.
-5. The command is then `/start-ticket {key}` or `/cut-release {repo}`. Sessions started from now on load the new skill.
+4. Set the chosen name in the skill's `name:` line and in the `/start-ticket` or `/cut-release` its description mentions. Write it to `~/.claude/skills/<name>/SKILL.md`, or under the repository's `.claude/skills/<name>/` when they want it for that repository only. When a skill of that name already exists, ask before replacing it. Done when the written file has no `{{` left and carries the chosen name.
+5. The command is then `/<name> {key}` or `/<name> {repo}`. Sessions started from now on load the new skill.
 
 ## 7. Other options (all optional)
 

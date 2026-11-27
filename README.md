@@ -54,7 +54,7 @@ Run `/cc-setup` in any session. Claude checks which of the sources above you hav
 
 ### Starter skills
 
-Two board buttons start a session with a command of yours: **Start with …** on a ticket and **Release** on a repository with unreleased work. If you have no skill for either, `/cc-setup` can write one for you:
+Two board buttons start a session with a command of yours: **Start with …** on a ticket and **Release** on a repository with unreleased work. If you already have a skill, command or prompt for either, whatever its name, `/cc-setup` asks for it and the button runs it. If you don't, `/cc-setup` can write one for you, under a name you choose (`start-ticket` and `cut-release` by default):
 
 - `/start-ticket <key>` takes a ticket to a pull request with passing checks: read the ticket and the code, plan, branch, build test-first, run tests and lint, review the diff, open the pull request, watch the checks.
 - `/cut-release <repo>` lists what merged since the last release, suggests the version, drafts the notes, publishes once you confirm, and follows the release workflow.
@@ -72,7 +72,7 @@ To look around before connecting anything, run `/cc demo`. It fills the board wi
 | `/cc` | Opens Command Control |
 | `/cc demo` / `/cc live` | Switches between sample data and your real data |
 | `/cc-setup` | Picks and tests your sources, writes starter skills if you want them, then saves your choices |
-| `/start-ticket`, `/cut-release` | The starter skills, once `/cc-setup` has written them |
+| `/start-ticket`, `/cut-release` | The starter skills under their default names, once `/cc-setup` has written them |
 | `/board`, `/board2` | Two older, simpler layouts of the same data |
 
 ## How it works
