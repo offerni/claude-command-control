@@ -62,10 +62,12 @@ These parts keep users safe. A pull request that touches one says why in its bod
 - **Branch:** `features/<short-name>` for new behaviour, `bugs/<short-name>` for fixes.
 - **Scope:** one change per pull request; the diff holds that change and nothing else.
 - **Title:** what changes, in plain words.
-- **Body:** plain sentences, short enough to read in one pass:
+- **Body:** plain sentences someone with no context can follow:
+  - what the change adds or fixes and why: the problem, who runs into it, and what the user sees before and after,
   - one bullet per behaviour change,
   - how it was tested (the checks above, plus what you tried in the app),
-  - screenshots for any change to the pane, at side-panel and expanded widths.
+  - screenshots for any change to the pane, at side-panel and expanded widths,
+  - anything left out on purpose, and why.
   When the scope changes during review, rewrite the body so it describes the pull request as it is now.
 - **Review:** `/review-pr <number>` in Claude Code reviews a pull request against these rules; CodeRabbit reviews it too.
 - **Commits:** each message says why the change was made.

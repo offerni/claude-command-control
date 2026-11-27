@@ -38,7 +38,7 @@ Run these only once steps 2 to 4 found nothing blocking, since they run the chan
 
 ## 6. Code and scope
 
-Hold the change to the Code and Pull requests sections of `AGENTS.md`: one change, a test named for each behaviour change, code with no comments, the file's own patterns, settings that only gain keys, and a body in the asked format.
+Hold the change to the Code and Pull requests sections of `AGENTS.md`: one change, a test named for each behaviour change, code with no comments, the file's own patterns, and settings that only gain keys. The body says what the change adds or fixes and why, so a reader with no context can follow it; a body missing either is a finding. Check it against the diff too: each behaviour change in the diff has its bullet, and each bullet matches the diff.
 
 ## 7. Report
 
