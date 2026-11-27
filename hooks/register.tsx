@@ -2018,6 +2018,7 @@ export const register: Register = on => {
     const issues = await read($, jira)
     const open = await read($, prs)
     const queue = await read($, releases)
+    const showsReleases = (cfg.github?.releaseRepos?.length ?? 0) > 0 || queue.length > 0
     const meter = await read($, usage)
     const isCollapsed = await read($, isUsageCollapsed)
     const suggested = await read($, suggestions)
@@ -2788,8 +2789,12 @@ export const register: Register = on => {
       const columns = e.props.bodyColumns
       const isWide = columns >= WIDE_COLUMNS
       const usable = columns - 2
-      const nowCol = Math.floor((usable - 3 * 2) / 4)
-      const lane = Math.floor((usable - RAIL - 4 * 2) / 4)
+      const nowColumns = showsReleases ? 4 : 3
+      const nowCol = Math.floor((usable - (nowColumns - 1) * 2) / nowColumns)
+      const searchCol = Math.floor((usable - 3 * 2) / 4)
+      const shownLanes = LANES.filter(([name]) => name !== 'Release' || showsReleases)
+      const shownStages = STAGES.map((name, index) => ({ name, index })).filter(({ name }) => name !== 'Release' || showsReleases)
+      const lane = Math.floor((usable - RAIL - shownLanes.length * 2) / shownLanes.length)
       const perRow = usable >= 146 ? 3 : 2
       const cardWidth = Math.floor((usable - (perRow - 1) * 2) / perRow)
       const halfWidth = Math.floor((usable - 6) / 2)
@@ -3035,7 +3040,7 @@ export const register: Register = on => {
 
       const strip = (prefix: string, stage: number, isLabeled: boolean) => (
         <Box key={`${prefix}:strip`} gap="xs" alignItems="center" flexWrap="wrap">
-          {STAGES.map((name, index) => {
+          {shownStages.map(({ name, index }) => {
             const mark = index < stage ? '●' : index === stage ? '◉' : '○'
 
             return (
@@ -3050,8 +3055,8 @@ export const register: Register = on => {
 
       const stageLine = (prefix: string, stage: number) => (
         <Box key={`${prefix}:stages`} gap="xs" alignItems="center" flexWrap="wrap">
-          {STAGES.flatMap((name, index) => [
-            index > 0 && <Text key={`${prefix}:sep:${name}`} color="inactive" size="caption">›</Text>,
+          {shownStages.flatMap(({ name, index }, position) => [
+            position > 0 && <Text key={`${prefix}:sep:${name}`} color="inactive" size="caption">›</Text>,
             <Text
               key={`${prefix}:stage:${name}`}
               color={index < stage ? 'success' : index === stage ? 'suggestion' : 'inactive'}
@@ -3346,7 +3351,7 @@ export const register: Register = on => {
 
       const lanes = (
         <Box key="lanes" gap={2} alignItems="flex-start">
-          {LANES.map(([name, stages, empty]) => {
+          {shownLanes.map(([name, stages, empty]) => {
             const items = liveWorks.filter(work => stages.includes(work.stage))
 
             return (
@@ -3572,7 +3577,7 @@ export const register: Register = on => {
                 const hits = found.hits.filter(hit => hit.group === kind)
 
                 return (
-                  <Box key={`search:${kind}`} width={nowCol} flexShrink={0} flexDirection="column" gap="xs">
+                  <Box key={`search:${kind}`} width={searchCol} flexShrink={0} flexDirection="column" gap="xs">
                     <Text weight="semibold">{`${title} · ${hits.length}`}</Text>
                     {hits.length === 0 ? <Text dimColor size="footnote">Nothing</Text> : hits.slice(0, 6).map(hitLine)}
                   </Box>
@@ -3743,7 +3748,7 @@ export const register: Register = on => {
               {nowColumn('sessions', 'Asking you', 'suggestion', sessionAsks)}
               {nowColumn('prs', 'Pull requests', 'text', prAsks)}
               {nowColumn('reviews', 'Reviews for you', 'success', reviewAsks)}
-              {nowColumn('releases', 'Ready to release', 'merged', releaseAsks)}
+              {showsReleases && nowColumn('releases', 'Ready to release', 'merged', releaseAsks)}
             </Box>,
           )
         : section(
@@ -3941,7 +3946,7 @@ export const register: Register = on => {
             {tabButton('sessions', 'Sessions')}
             {tabButton('prs', `PRs ${openPrs.length}`)}
             {tabButton('tickets', `Tickets ${ticketCount}`)}
-            {tabButton('releases', `Releases ${queue.length}`)}
+            {showsReleases && tabButton('releases', `Releases ${queue.length}`)}
           </Box>
           {noteBar}
           {usagePanel}
