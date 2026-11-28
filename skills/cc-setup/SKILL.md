@@ -16,7 +16,7 @@ Work through the steps in order. Ask one question at a time with AskUserQuestion
 
 ## 2. Tickets (Jira or Linear)
 
-- Look through your tools for one whose name ends in `getJiraIssue` (an Atlassian MCP server) and for a Linear MCP server: one with `get_issue`, `list_issues` and `save_issue` tools. The server is the part between `mcp__` and the next `__`. The tool prefix is whatever comes before `getJiraIssue` or `get_issue` in the tool's own name (often empty).
+- Look through your tools for one whose name ends in `getJiraIssue` (an Atlassian MCP server) and for a Linear MCP server: one with `get_issue` and `save_issue` tools. The server is the part between `mcp__` and the next `__`. The tool prefix is whatever comes before `getJiraIssue` or `get_issue` in the tool's own name (often empty).
 - For Jira, find the cloud id: call the server's `getAccessibleAtlassianResources` tool if it has one, otherwise ask the user for their Atlassian site URL (it can stand in for the cloud id). The browse URL is the site URL followed by `/browse/`. Save it with `kind: "jira"`.
 - For Linear, there is no cloud id. Call `get_issue` with a ticket key the user gives you and `fields: ["url"]`; the browse URL is that URL up to and including `/issue/`, for example `https://linear.app/acme/issue/`. Save it with `kind: "linear"`.
 - When both are there, ask which one holds their tickets. Ask the user whether to use it. Test with `getJiraIssue` or `get_issue` on a ticket key they give you. Only Jira and Linear are supported today; for anything else, choose None.

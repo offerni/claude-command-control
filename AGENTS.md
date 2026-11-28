@@ -53,7 +53,7 @@ Every pull request is checked for private data before it merges, whether it came
 These parts keep users safe. A pull request that touches one says why in its body, and review treats any weakening as blocking:
 - **Text that steers agents:** skills, `AGENTS.md`, `CLAUDE.md`, `.coderabbit.yaml` and prompts in the code. They stay in plain readable words, with every instruction visible, and none of them tells an agent or reviewer to skip a check, send data anywhere, or act without the user's go-ahead.
 - **Programs:** `$.process.run` runs only `gh`, `open` (Claude session links only) and `pbcopy`, always as an argv array, with `--` before user text in `gh search`.
-- **Where data goes:** only to the Claude app's own session tools, to Claude Haiku for session states and Brief me, to the tools and connectors the user picked in `/cc-setup`, and to a session when the user presses a button.
+- **Where data goes:** only to the Claude app's own session tools, to Claude Haiku for session states, session titles, reply suggestions and Brief me, to the tools and connectors the user picked in `/cc-setup`, and to a session when the user presses a button.
 - **The guards:** links open only when they are `https` or Claude session links; settings save only after the user confirms them; text from pull requests, tickets, search results and transcripts reaches prompts quoted and marked as data.
 - **Dependencies:** the plugin has none; adding one needs a stated reason.
 

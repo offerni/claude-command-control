@@ -23,6 +23,7 @@ export type Row = {
 export type Jira = { status: string; category: string; summary: string }
 
 export type Pr = {
+  owner: string
   repo: string
   number: number
   title: string
