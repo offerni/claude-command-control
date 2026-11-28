@@ -83,7 +83,7 @@ const rows = atom({ plugin: 'session-board', key: 'rows' } as const, [], { shape
 const openForks = atom({ plugin: 'session-board', key: 'openForks' } as const, [])
 const tags = atom({ plugin: 'session-board', key: 'tags' } as const, {})
 const jira = atom({ plugin: 'session-board', key: 'jira' } as const, {})
-const prs = atom({ plugin: 'session-board', key: 'prs' } as const, [], { shape: 'prs-3' })
+const prs = atom({ plugin: 'session-board', key: 'prs' } as const, [], { shape: 'prs-4' })
 const releases = atom({ plugin: 'session-board', key: 'releases' } as const, [], { shape: 'releases-1' })
 const usage = atom({ plugin: 'session-board', key: 'usage' } as const, null, { shape: 'usage-1' })
 const sources = atom({ plugin: 'session-board', key: 'sources' } as const, {})
@@ -701,10 +701,12 @@ async function refreshMeetings($: EngineInterface, now: number) {
   )
 }
 
+const isListed = (pr: Pr) => !cfg.github?.ownerOnly || !cfg.github.owner || pr.owner?.toLowerCase() === cfg.github.owner.toLowerCase()
+
 function signatures(list: Row[], all: Pr[], queue: Release[], issues: Record<string, Jira | null>, polled: number): Record<string, string> {
   return Object.fromEntries([
     ...list.map(row => [`row:${row.id}`, isWorking(row, polled) ? 'working' : row.isWaiting ? 'waiting' : 'idle']),
-    ...all.map(pr => [`pr:${pr.repo}#${pr.number}`, [pr.state, pr.ci ?? '', pr.review ?? '', pr.openThreads].join('|')]),
+    ...all.filter(isListed).map(pr => [`pr:${pr.repo}#${pr.number}`, [pr.state, pr.ci ?? '', pr.review ?? '', pr.openThreads].join('|')]),
     ...queue.map(release => [`release:${release.repo}`, release.tag]),
     ...Object.entries(issues).flatMap(([key, issue]) => (issue ? [[`jira:${key}`, issue.status]] : [])),
   ])
@@ -756,12 +758,13 @@ async function markSeen($: EngineInterface, now: number) {
 }
 
 async function publishBand($: EngineInterface, fresh: Row[], all: Pr[], now: number) {
+  const listed = all.filter(isListed)
   const items = [
     ...fresh.filter(row => row.isWaiting && !isWorking(row, now)).map(row => `${row.title}: ${row.brief || 'waiting on you'}`),
-    ...all
+    ...listed
       .filter(pr => pr.state === 'OPEN' && (pr.ci === 'FAILURE' || pr.ci === 'ERROR'))
       .map(pr => `${pr.repo} #${pr.number} ${checkNames(pr.failing) || 'CI'} failing`),
-    ...all.filter(pr => pr.state === 'OPEN' && isReady(pr)).map(pr => `${pr.repo} #${pr.number} ready to merge`),
+    ...listed.filter(pr => pr.state === 'OPEN' && isReady(pr)).map(pr => `${pr.repo} #${pr.number} ready to merge`),
   ]
   await $.store.set('band', { at: now, items })
 }
@@ -810,7 +813,7 @@ async function searchPrs($: EngineInterface, query: string): Promise<SearchHit[]
   const number = /^#?(\d+)$/.exec(query)?.[1]
   if (number) {
     return (await read($, prs))
-      .filter(pr => pr.number === Number(number))
+      .filter(pr => pr.number === Number(number) && isListed(pr))
       .map(pr => ({ group: 'prs', key: `pr:${pr.repo}#${pr.number}`, title: `${pr.repo} #${pr.number} ${pr.title}`, detail: pr.state.toLowerCase(), href: pr.url }))
   }
   const found: FoundPr[] = JSON.parse(
@@ -1073,7 +1076,7 @@ function demoSnapshot(now: number): Snapshot {
     ...extra,
   })
   const pull = (repo: string, number: number, title: string, branch: string, extra: Partial<Pr>): Pr => ({
-    owner: 'acme',
+    owner: cfg.github?.owner ?? 'acme',
     repo,
     number,
     title,
@@ -1337,7 +1340,7 @@ async function act($: EngineInterface, key: string, doing: string, run: () => Pr
 }
 
 async function suggestTitle($: EngineInterface, row: Row) {
-  const ticket = ticketOf({ ...row, mentioned: undefined }, await read($, tags), await read($, prs))
+  const ticket = ticketOf({ ...row, mentioned: TICKET.exec(row.branch ?? '')?.[0] }, await read($, tags), await read($, prs))
   const name = await draftTitle($, row, RETITLE_SYSTEM, [
     ticket ? `Ticket: ${ticket}` : '',
     row.prNumber === undefined ? '' : `Pull request: ${row.prRepo ? `${row.prRepo} ` : ''}#${row.prNumber}`,
@@ -1367,23 +1370,22 @@ const scanTitles = ($: EngineInterface) =>
     const failed = checked.filter(([, name]) => name === null).length
     await update($, titleIdeas, () => Object.fromEntries(better))
 
-    return [
-      better.length > 0 ? `${better.length} of ${shown.length} sessions could have a better title` : failed === 0 ? 'Every session title already fits' : '',
-      failed > 0 ? `${failed} could not be checked` : '',
-    ]
-      .filter(Boolean)
-      .join('; ')
+    return (
+      [better.length > 0 ? `${better.length} of ${shown.length} sessions could have a better title` : '', failed > 0 ? `${failed} could not be checked` : '']
+        .filter(Boolean)
+        .join('; ') || 'Every session title already fits'
+    )
   })
 
-type Bulk = { done: number; asked: number; failures: string[] }
+type BulkOutcome = { succeeded: number; asked: number; failures: string[] }
 
-async function eachOrAskClaude<T>($: EngineInterface, targets: T[], run: (target: T) => Promise<unknown>, request: (rest: T[]) => string): Promise<Bulk> {
+async function eachOrAskClaude<T>($: EngineInterface, targets: T[], run: (target: T) => Promise<unknown>, request: (rest: T[]) => string): Promise<BulkOutcome> {
   const failures: string[] = []
-  let done = 0
+  let succeeded = 0
   for (const [index, target] of targets.entries()) {
     try {
       await run(target)
-      done += 1
+      succeeded += 1
     } catch (error) {
       if (!(error instanceof NeedsClaude)) {
         failures.push(messageOf(error))
@@ -1392,16 +1394,16 @@ async function eachOrAskClaude<T>($: EngineInterface, targets: T[], run: (target
       const rest = targets.slice(index)
       await askClaude($, request(rest))
 
-      return { done, asked: rest.length, failures }
+      return { succeeded, asked: rest.length, failures }
     }
   }
 
-  return { done, asked: 0, failures }
+  return { succeeded, asked: 0, failures }
 }
 
-function bulkSummary(verb: string, { done, asked, failures }: Bulk) {
+function bulkSummary(verb: string, { succeeded, asked, failures }: BulkOutcome) {
   const summary = [
-    done > 0 || asked === 0 ? `${verb}d ${done} session${done === 1 ? '' : 's'}` : '',
+    succeeded > 0 || asked === 0 ? `${verb}d ${succeeded} session${succeeded === 1 ? '' : 's'}` : '',
     asked > 0 ? `asked Claude to ${verb} ${asked}` : '',
     failures.length > 0 ? `${failures.length} failed: ${failures[0]}` : '',
   ]
@@ -1411,7 +1413,7 @@ function bulkSummary(verb: string, { done, asked, failures }: Bulk) {
   return `${summary[0]?.toUpperCase() ?? ''}${summary.slice(1)}`
 }
 
-const sessionCount = (rest: unknown[]) => (rest.length === 1 ? 'this session' : `these ${rest.length} sessions`)
+const theseSessions = (rest: unknown[]) => (rest.length === 1 ? 'this session' : `these ${rest.length} sessions`)
 
 const dropTitleIdeas = ($: EngineInterface, ids: string[]) =>
   update($, titleIdeas, current => Object.fromEntries(Object.entries(current).filter(([id]) => !ids.includes(id))))
@@ -1424,7 +1426,7 @@ const applyTitles = ($: EngineInterface, key: string, targets: RenameTarget[]) =
       $,
       targets,
       target => runAction($, SESSIONS, 'set_session_title', { session_id: target.id, title: target.name }),
-      rest => `Rename ${sessionCount(rest)} with set_session_title: ${rest.map(item => `${JSON.stringify(item.title)} (${item.id}) to ${JSON.stringify(item.name)}`).join('; ')}.`,
+      rest => `Rename ${theseSessions(rest)} with set_session_title: ${rest.map(item => `${JSON.stringify(item.title)} (${item.id}) to ${JSON.stringify(item.name)}`).join('; ')}.`,
     )
     await dropTitleIdeas($, targets.map(target => target.id))
 
@@ -1438,7 +1440,7 @@ const archiveEach = ($: EngineInterface, targets: ArchiveTarget[]) =>
     $,
     targets,
     target => archive($, target.id, target.reason),
-    rest => `Archive ${sessionCount(rest)} with archive_session: ${rest.map(item => `${JSON.stringify(item.title)} (${item.id}, reason: ${item.reason})`).join('; ')}.`,
+    rest => `Archive ${theseSessions(rest)} with archive_session: ${rest.map(item => `${JSON.stringify(item.title)} (${item.id}, reason: ${item.reason})`).join('; ')}.`,
   )
 
 async function archiveOne($: EngineInterface, row: Row, reason: string) {
@@ -1488,7 +1490,7 @@ const closeTicket = ($: EngineInterface, key: string, related: Row[], isDone: bo
     if (!isDone) await moveToDone($, key)
     jiraFetchedAt.delete(key)
     const kept = related.filter(row => isWorking(row, polled) || row.prState === 'OPEN')
-    const { done: archived, asked, failures } = await archiveEach(
+    const { succeeded: archived, asked, failures } = await archiveEach(
       $,
       related.filter(row => !kept.includes(row)).map(row => ({ id: row.id, title: row.title, reason: `${key} is done` })),
     )
@@ -2733,8 +2735,7 @@ export const register: Register = on => {
     const closeRows = list
       .filter(row => stateOf(row) === 'close')
       .sort((a, b) => Number(advised.get(a.id)?.level === 'can') - Number(advised.get(b.id)?.level === 'can'))
-    const ownedBy = cfg.github?.ownerOnly ? cfg.github.owner?.toLowerCase() : undefined
-    const openPrs = open.filter(pr => pr.state === 'OPEN' && (!ownedBy || pr.owner.toLowerCase() === ownedBy))
+    const openPrs = open.filter(pr => pr.state === 'OPEN' && isListed(pr))
     const ticketCount = groupByTicket(list, tagged, open, polled).filter(([key]) => key !== '').length
     const toggleIn = (ids: string[], id: string) => (ids.includes(id) ? ids.filter(other => other !== id) : [...ids, id])
     const field = (label: string, value: RenderChildren) => (
@@ -3122,7 +3123,7 @@ export const register: Register = on => {
           const pulls = [
             ...new Set([
               ...members.flatMap(row => prOf.get(row.id) ?? []),
-              ...open.filter(pr => prTicket(pr) === key && pr.state !== 'CLOSED'),
+              ...open.filter(pr => prTicket(pr) === key && pr.state !== 'CLOSED' && isListed(pr)),
               ...openPrs.filter(pr => (held[prKeyOf(pr)] ?? []).some(owner => members.some(row => row.id === owner.id))),
             ]),
           ]
