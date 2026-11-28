@@ -14,16 +14,21 @@ Work through the steps in order. Ask one question at a time with AskUserQuestion
 - Command Control lists and acts on sessions through the Claude desktop app's session tools (`mcp__ccd_session_mgmt__list_sessions` and friends). If those tools are not available, tell the user that Command Control needs the Claude desktop app's Code tab, and stop.
 - If `mcp__session-board__configure` is not listed, load it with ToolSearch. If it still is not there, the plugin is not loaded: tell the user to run `/reload-plugins` and try again.
 
-## 2. Tickets (Jira)
+## 2. Tickets (Jira or Linear)
 
-- Look through your tools for one whose name ends in `getJiraIssue` (an Atlassian MCP server). The server is the part between `mcp__` and the next `__`. The tool prefix is whatever comes before `getJiraIssue` in the tool's own name (often empty).
-- If there is one, find the cloud id: call the server's `getAccessibleAtlassianResources` tool if it has one, otherwise ask the user for their Atlassian site URL (it can stand in for the cloud id). The browse URL is the site URL followed by `/browse/`.
-- Ask the user whether to use it. Test with `getJiraIssue` on a ticket key they give you. Only Jira is supported today; for anything else, choose None.
+- Look through your tools for one whose name ends in `getJiraIssue` (an Atlassian MCP server) and for a Linear MCP server: one with `get_issue` and `save_issue` tools. The server is the part between `mcp__` and the next `__`. The tool prefix is whatever comes before `getJiraIssue` or `get_issue` in the tool's own name (often empty).
+- For Jira, find the cloud id: call the server's `getAccessibleAtlassianResources` tool if it has one, otherwise ask the user for their Atlassian site URL (it can stand in for the cloud id). The browse URL is the site URL followed by `/browse/`. Save it with `kind: "jira"`.
+- For Linear, there is no cloud id. Call `get_issue` with a ticket key the user gives you and `fields: ["url"]`; the browse URL is that URL up to and including `/issue/`, for example `https://linear.app/acme/issue/`. Save it with `kind: "linear"`.
+- When both are there, ask which one holds their tickets. Ask the user whether to use it. Test with `getJiraIssue` or `get_issue` on a ticket key they give you. Only Jira and Linear are supported today; for anything else, choose None.
 
 ## 3. GitHub
 
 - Run `gh auth status`. If gh is missing or not signed in, say so and offer None (pull requests, reviews and releases turn off).
 - Ask which organization or user owns their repositories (`owner`), and which repositories should show merged-but-unreleased work (`releaseRepos`). `gh repo list <owner> --limit 50 --json name` helps them pick. Releases are read from each repository's latest GitHub release.
+- Ask three more questions, each one off unless they say yes:
+  - whether to show only pull requests and review requests from the owner's repositories (`ownerOnly`), for someone whose account also works in other organizations;
+  - whether to show only review requests made to them directly, leaving out those made to their teams (`directReviewsOnly`);
+  - after how many days without an update a review request leaves the board (`reviewDays`), or never.
 - Test with `gh api repos/<owner>/<first repo> --jq .full_name`.
 
 ## 4. Docs search

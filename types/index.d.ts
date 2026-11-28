@@ -23,6 +23,7 @@ export type Row = {
 export type Jira = { status: string; category: string; summary: string }
 
 export type Pr = {
+  owner: string
   repo: string
   number: number
   title: string
@@ -86,8 +87,8 @@ export type Handled = { sig: string; at: number; isProposed: boolean }
 export type Owner = { id: string; title: string }
 
 export type CcConfig = {
-  tickets?: { server: string; toolPrefix?: string; cloudId: string; browseUrl: string }
-  github?: { owner?: string; releaseRepos?: string[] }
+  tickets?: { kind?: 'jira' | 'linear'; server: string; toolPrefix?: string; cloudId?: string; browseUrl: string }
+  github?: { owner?: string; releaseRepos?: string[]; ownerOnly?: boolean; directReviewsOnly?: boolean; reviewDays?: number }
   search?: { server: string; tool: string; args?: Record<string, unknown> }
   calendar?: { server: string }
   commands?: { ticket?: string; release?: string; services?: string }
@@ -119,6 +120,7 @@ declare module 'claude-code' {
       reply: string
       busy: Record<string, string>
       names: Record<string, SessionName>
+      titleIdeas: Record<string, string>
       openForks: string[]
       note: string
       isOpen2: boolean
