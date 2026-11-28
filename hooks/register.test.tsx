@@ -1099,10 +1099,12 @@ test('Rename sends Claude Haiku the title, branch and messages quoted as data', 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
 
   await ui.press({ key: 'local_m:rename' })
-  expect(w.retitlePrompts[0]?.split('\n').map(line => line.replace(/^([\w ]+): "[\s\S]*$/, '$1: "…"'))).toEqual([
-    'Current title: "…"',
-    'Branch: "…"',
-    'Latest messages: "…"',
+  expect(w.retitlePrompts).toEqual([
+    [
+      `Current title: ${JSON.stringify('Weekly report')}`,
+      `Branch: ${JSON.stringify('features/weekly-report')}`,
+      `Latest messages: ${JSON.stringify(w.events.local_m?.join('\n'))}`,
+    ].join('\n'),
   ])
   await ui.unmount()
 })
@@ -1497,6 +1499,14 @@ const reviewAsk = (number: number, updatedAt: string, owner: string, isDirect: b
   isDirect,
 })
 
+const elsewherePr = (node: (typeof PRS.data.viewer.open.nodes)[number], number: number, extra: Partial<(typeof PRS.data.viewer.open.nodes)[number]> = {}) => ({
+  ...node,
+  number,
+  url: `https://github.com/elsewhere/gadgets/pull/${number}`,
+  repository: { name: 'gadgets', owner: { login: 'elsewhere' } },
+  ...extra,
+})
+
 function githubWorld(github: Record<string, unknown>) {
   const w = forkWorld()
   w.events.local_a = ['[assistant] Tests pass, opening the PR next.', '[result] done (success), 1 turns']
@@ -1507,10 +1517,7 @@ function githubWorld(github: Record<string, unknown>) {
 
 test('with ownerOnly, cc leaves out pull requests and review requests from repositories the owner does not own, whatever the owner\'s letter case', async ($, on) => {
   const w = githubWorld({ ownerOnly: true, owner: 'Acme' })
-  const nodes = PRS.data.viewer.open.nodes.flatMap(node => [
-    node,
-    { ...node, number: 12, url: 'https://github.com/elsewhere/gadgets/pull/12', repository: { name: 'gadgets', owner: { login: 'elsewhere' } } },
-  ])
+  const nodes = PRS.data.viewer.open.nodes.flatMap(node => [node, elsewherePr(node, 12)])
   w.prs = { data: { viewer: { ...PRS.data.viewer, open: { nodes } } } }
   w.reviewAsks = [reviewAsk(88, '2026-11-10T22:45:00Z', 'acme', true), reviewAsk(61, '2026-11-10T22:45:00Z', 'elsewhere', true)]
   engine(on, w)
@@ -1531,10 +1538,7 @@ test('with ownerOnly, cc leaves out pull requests and review requests from repos
 test('with ownerOnly, Since you looked leaves out changes on other owners\' pull requests', async ($, on) => {
   const w = githubWorld({ ownerOnly: true, owner: 'acme' })
   const withElsewhere = (reviewDecision: string) =>
-    PRS.data.viewer.open.nodes.flatMap(node => [
-      { ...node, reviewDecision },
-      { ...node, reviewDecision, number: 12, url: 'https://github.com/elsewhere/gadgets/pull/12', repository: { name: 'gadgets', owner: { login: 'elsewhere' } } },
-    ])
+    PRS.data.viewer.open.nodes.flatMap(node => [{ ...node, reviewDecision }, elsewherePr(node, 12, { reviewDecision })])
   w.prs = { data: { viewer: { ...PRS.data.viewer, open: { nodes: withElsewhere('REVIEW_REQUIRED') } } } }
   engine(on, w)
   await $.command.run(CC)
@@ -1546,17 +1550,13 @@ test('with ownerOnly, Since you looked leaves out changes on other owners\' pull
   await ui.unmount()
 })
 
-test('with ownerOnly, a session still matches its own pull request in another owner\'s repository', async ($, on) => {
+test('with ownerOnly, a session still matches its own pull request in another owner\'s repository, and only that one joins its ticket', async ($, on) => {
   const w = githubWorld({ ownerOnly: true, owner: 'acme' })
   w.sessions.push({ sessionId: 'local_z', title: 'Gadget polish', isRunning: false, lastActivityAt: '2026-11-10T23:10:00Z', prNumber: 12, prState: 'OPEN' })
-  const gadgets = PRS.data.viewer.open.nodes.slice(0, 1).map(node => ({
-    ...node,
-    number: 12,
-    title: 'ABC-260: Gadget polish',
-    url: 'https://github.com/elsewhere/gadgets/pull/12',
-    headRefName: 'features/gadget-polish',
-    repository: { name: 'gadgets', owner: { login: 'elsewhere' } },
-  }))
+  const gadgets = PRS.data.viewer.open.nodes.slice(0, 1).flatMap(node => [
+    elsewherePr(node, 12, { title: 'ABC-260: Gadget polish', headRefName: 'features/gadget-polish' }),
+    elsewherePr(node, 13, { title: 'ABC-260: Gadget docs', headRefName: 'features/gadget-docs' }),
+  ])
   w.prs = { data: { viewer: { ...PRS.data.viewer, open: { nodes: [...PRS.data.viewer.open.nodes, ...gadgets] } } } }
   engine(on, w)
   await $.command.run(CC)
@@ -1564,7 +1564,47 @@ test('with ownerOnly, a session still matches its own pull request in another ow
 
   expect(await ui.find({ key: 'now:gadgets#12:fix' })).toBeUndefined()
   expect((await ui.find({ key: 'work:ABC-260:open' }))?.text).toBe('ABC-260')
+
+  await ui.press({ key: 'work:ABC-260:open' })
+  expect([...new Set(await texts(ui, /^gadgets #/))]).toEqual(['gadgets #12'])
   await ui.unmount()
+})
+
+test('with ownerOnly, cc draws a snapshot from an older session whose pull requests carry no owner', async ($, on) => {
+  const w = githubWorld({ ownerOnly: true, owner: 'acme' })
+  w.stored.fetcher = { id: 'local_other', at: Date.parse('2026-11-10T23:44:50Z') }
+  w.stored.snapshot = {
+    at: Date.parse('2026-11-10T23:44:50Z'),
+    rows: [],
+    prs: [{ repo: 'billing', number: 350, title: 'Invoice export endpoint', url: 'https://github.com/acme/billing/pull/350', headRefName: 'features/invoice-export', state: 'OPEN', ci: 'FAILURE', review: null, mergeable: 'MERGEABLE', isDraft: false, openThreads: 0, failing: ['build'] }],
+    releases: [],
+    jira: {},
+    usage: null,
+    reviews: [],
+    meetings: [],
+    holders: {},
+    sources: {},
+  }
+  engine(on, w)
+  await $.command.run(CC)
+  await w.clock?.settle()
+  const ui = await $.ui.mount({ ...PANE3, surface: 'desktop' })
+
+  expect(await ui.find({ key: 'now:billing#350:fix' })).toBeUndefined()
+  expect(await ui.find({ key: 'refresh' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('/cc demo keeps its sample pull requests with ownerOnly on for another owner', async ($, on) => {
+  const w = githubWorld({ ownerOnly: true, owner: 'globex' })
+  engine(on, w)
+  await $.command.run({ ...CC, args: 'demo' })
+  await w.clock?.settle()
+  await $.command.run(BOARD2)
+  const board2 = await $.ui.mount({ ...PANE2, surface: 'desktop' })
+
+  expect((await board2.find({ key: 'tab:prs' }))?.text).toMatch(/^PRs [1-9]/)
+  await board2.unmount()
 })
 
 test('with directReviewsOnly, cc lists review requests made to you and leaves out those made to your teams', async ($, on) => {
