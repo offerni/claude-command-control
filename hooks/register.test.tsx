@@ -1575,7 +1575,20 @@ test('with ownerOnly, cc draws a snapshot from an older session whose pull reque
   w.stored.fetcher = { id: 'local_other', at: Date.parse('2026-11-10T23:44:50Z') }
   w.stored.snapshot = {
     at: Date.parse('2026-11-10T23:44:50Z'),
-    rows: [],
+    rows: [
+      {
+        id: 'local_s',
+        title: 'ABC-210 snapshot work',
+        isRunning: false,
+        isMidTurn: false,
+        lastActivityAt: '2026-11-10T23:40:00Z',
+        isPinned: false,
+        isSide: false,
+        status: 'From the older snapshot.',
+        isWaiting: false,
+        brief: '',
+      },
+    ],
     prs: [{ repo: 'billing', number: 350, title: 'Invoice export endpoint', url: 'https://github.com/acme/billing/pull/350', headRefName: 'features/invoice-export', state: 'OPEN', ci: 'FAILURE', review: null, mergeable: 'MERGEABLE', isDraft: false, openThreads: 0, failing: ['build'] }],
     releases: [],
     jira: {},
@@ -1590,8 +1603,9 @@ test('with ownerOnly, cc draws a snapshot from an older session whose pull reque
   await w.clock?.settle()
   const ui = await $.ui.mount({ ...PANE3, surface: 'desktop' })
 
+  expect(w.listCalls).toBe(0)
+  expect((await ui.find({ type: 'Text', text: /^From the older snapshot/ }))?.text).toBe('From the older snapshot.')
   expect(await ui.find({ key: 'now:billing#350:fix' })).toBeUndefined()
-  expect(await ui.find({ key: 'refresh' })).toBeDefined()
   await ui.unmount()
 })
 
